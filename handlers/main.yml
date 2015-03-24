@@ -1,0 +1,7 @@
+---
+# handlers file for RT
+  - name: restart machine
+    command: reboot
+
+  - name: restart httpd
+    service: name=httpd state=restarted

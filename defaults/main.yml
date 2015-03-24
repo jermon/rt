@@ -1,0 +1,6 @@
+---
+# defaults file for RT
+rt_version: rt-4.2.9
+rt_name: example.com
+rt_organisation: example.com
+

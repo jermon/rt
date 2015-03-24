@@ -1,0 +1,116 @@
+---
+# tasks file for RT
+  - name: upgrade all packages
+    yum: name=* state=latest
+
+  - name: Install with yum
+    yum: state=present pkg={{item}}
+    with_items:
+    - file 
+    - ntp   
+    - openssh-clients
+    - screen
+    - man
+    - libselinux-python
+    - vim-enhanced 
+    - man 
+    - man-pages 
+    - wget 
+    - yum-utils
+    - nano
+    - httpd 
+    - httpd-devel 
+    - mod_ssl 
+    - mod_fcgid 
+    - make 
+    - gcc 
+    - openssl-devel 
+    - gd-devel 
+    - perl-CPAN
+    - perl-YAML 
+    - perl-GD 
+    - graphviz-perl
+    - perl-Time-HiRes
+    - gnupg2
+    - perl-TermReadKey
+    - perl-DateTime
+    - perl-Crypt-Eksblowfish
+    - perl-HTTP-Request-AsCGI
+    - perl-Encode-Locale
+    - perl-DBIx-SearchBuilder
+    - graphviz
+    - graphviz-gd
+    - perl-GraphViz
+
+
+
+  - name: Ensure that 127.0.0.1 points to localhost in /etc/hosts
+    lineinfile: dest=/etc/hosts regexp='^127\.0\.0\.1' line='127.0.0.1 localhost' owner=root group=root mode=0644
+
+  - name: Start NTP service
+    service: name=ntpd state=started enabled=yes
+
+# Mysql
+  - name: yum install mysql
+    yum: name={{ item }} state=present
+    with_items:
+      - mysql 
+      - mysql-server 
+      - mysql-devel
+      - MySQL-python
+
+  - name: Mysql server start and enable
+    service: name=mysqld state=started enabled=yes  
+
+#CPAN
+  - name: Cpan setup
+    command: perl -MCPAN -e 'my $c = "CPAN::HandleConfig"; $c->load(doit => 1, autoconfig => 1); $c->edit(prerequisites_policy => "follow"); $c->edit(build_requires_install_policy => "yes"); $c->commit'
+
+# RT 
+  - name: Create group rt
+    group: name=rt state=present
+
+  - name: Create user rt
+    user: name=rt
+
+  - name: Add user apache to gtoup rt
+    user: name=apache groups=rt
+
+  - name: Get RT
+    command: wget http://download.bestpractical.com/pub/rt/release/{{ rt_version }}.tar.gz creates={{ rt_version }}.tar.gz
+
+  - name: Unpack RT
+    command: tar -xzf {{ rt_version }}.tar.gz creates={{ rt_version }}
+
+  - name: ./configure RT
+    command: chdir={{ rt_version }} ./configure --with-web-user=apache --with-web-group=apache --enable-graphviz --enable-gd --disable-gpg
+
+  - name: Make RT fixdeps
+    shell: cd {{ rt_version }}; export PERL_MM_USE_DEFAULT=1; make fixdeps
+
+  - name: Make RT install  
+    command: chdir={{ rt_version }} make install
+
+  - name: RT db conf 
+    copy: src=initialize-database.input dest=/home/vagrant/{{ rt_version }}/initialize-database.input owner=root group=root mode=0644
+
+  - name: Make RT dropdb
+    mysql_db: name=rt4 state=absent
+
+  - name: Make RT initialize-database
+    shell: cd {{ rt_version }}; make initialize-database </home/vagrant/{{ rt_version }}/initialize-database.input
+
+  - name: Install RT httpd conf
+    copy: src=rt.conf dest=/etc/httpd/conf.d/rt.conf owner=root group=root mode=0644
+    notify: restart httpd
+
+  - name: Install RT_SiteConfig.pm
+    template: src=RT_SiteConfig.pm.j2 dest=/opt/rt4/etc/RT_SiteConfig.pm owner=root group=rt mode=0644
+    notify: restart httpd
+
+  - name: Start apache server
+    service: name=httpd state=started enabled=yes
+
+  - name: Debug
+    debug: msg="login with root/password"
+
