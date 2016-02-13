@@ -1,0 +1,16 @@
+---
+- hosts: all
+  vars:
+    tomcat_install_base: /usr/share/tomcat6
+
+  pre_tasks:
+
+  roles:
+    - selinux_disable
+    - nano
+    - RT
+
+  tasks:
+
+  handlers:
+
