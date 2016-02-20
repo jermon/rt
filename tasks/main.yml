@@ -1,16 +1,11 @@
 ---
 # tasks file for RT
-  - name: upgrade all packages
-    yum: name=* state=latest
-
   - name: Install with yum
     yum: state=present pkg={{item}}
     with_items:
     - file 
     - ntp   
     - openssh-clients
-    - screen
-    - man
     - libselinux-python
     - vim-enhanced 
     - man 
@@ -26,7 +21,7 @@
     - gcc 
     - openssl-devel 
     - gd-devel 
-    - perl-CPAN
+#    - perl-CPAN
     - perl-YAML 
     - perl-GD 
     - graphviz-perl
@@ -37,35 +32,82 @@
     - perl-Crypt-Eksblowfish
     - perl-HTTP-Request-AsCGI
     - perl-Encode-Locale
-    - perl-DBIx-SearchBuilder
+#    - perl-DBIx-SearchBuilder
     - graphviz
     - graphviz-gd
     - perl-GraphViz
+    - perl-Plack
+    - perl-DBD-Pg
+    ###############33
+    - perl-Apache-Session
+    - perl-Crypt-SSLeay
+    - perl-CSS-Squish
+    - perl-Date-Manip
+    - perl-Devel-GlobalDestruction
+    - perl-Email-Address
+    - perl-Encode
+    - perl-FCGI-ProcManager
+    - perl-File-Which
+    - perl-HTML-FormatText-WithLinks
+    - perl-HTML-FormatText-WithLinks-AndTables
+    - perl-HTML-Scrubber
+    - perl-IPC-Run3
+    - perl-JSON
+    - perl-Locale-Maketext
+    - perl-Log-Dispatch
+    - perl-LWP-Protocol-https
+    - perl-MIME-Types
+    - perl-Module-Versions-Report
+    - perl-Mozilla-CA
+    - perl-Net-CIDR
+    - perl-Net-IP
+    - perl-Regexp-Common
+    - perl-Regexp-IPv6
+    - perl-String-ShellQuote
+    - perl-Sys-Syslog
+    - perl-Text-Template
+    - perl-Time-ParseDate
+    - perl-UNIVERSAL-require
+    - perl-XML-RSS
+    - perl-Encode
+    - perl-HTML-FormatText-WithLinks-AndTables
 
-
-
-  - name: Ensure that 127.0.0.1 points to localhost in /etc/hosts
-    lineinfile: dest=/etc/hosts regexp='^127\.0\.0\.1' line='127.0.0.1 localhost' owner=root group=root mode=0644
+#  - name: Ensure that 127.0.0.1 points to localhost in /etc/hosts
+#    lineinfile: 
+#      dest: /etc/hosts 
+#      regexp: '^127\.0\.0\.1' 
+#      line: '127.0.0.1 localhost' 
+#      owner: root 
+#      group: root 
+#      mode: 0644
 
   - name: Start NTP service
-    service: name=ntpd state=started enabled=yes
-
-# Mysql
-  - name: yum install mysql
-    yum: name={{ item }} state=present
-    with_items:
-      - mysql 
-      - mysql-server 
-      - mysql-devel
-      - MySQL-python
-
-  - name: Mysql server start and enable
-    service: name=mysqld state=started enabled=yes  
+    service: 
+      name: ntpd 
+      state: started 
+      enabled: yes
 
 #CPAN
-  - name: Cpan setup
-    command: perl -MCPAN -e 'my $c = "CPAN::HandleConfig"; $c->load(doit => 1, autoconfig => 1); $c->edit(prerequisites_policy => "follow"); $c->edit(build_requires_install_policy => "yes"); $c->commit'
+#  - name: Copy CPAN config file
+#    unarchive: 
+#      src: cpan.tgz
+#      dest: /root
+#      creates: /root/.cpan
 
+  - name: Get cpanm
+    get_url: 
+      url=http://cpanmin.us
+      dest=/usr/local/sbin/cpanm
+      mode=0755
+      
+  - name: Run cpanm
+    cpanm: name={{ item }}
+    with_items:
+      - DateTime::Format::Natural
+      - Date::Extract
+      - HTML::Mason::PSGIHandler
+      - Plack::Handler::Starlet
+ 
 # RT 
   - name: Create group rt
     group: name=rt state=present
@@ -77,40 +119,70 @@
     user: name=apache groups=rt
 
   - name: Get RT
-    command: wget http://download.bestpractical.com/pub/rt/release/{{ rt_version }}.tar.gz creates={{ rt_version }}.tar.gz
-
-  - name: Unpack RT
-    command: tar -xzf {{ rt_version }}.tar.gz creates={{ rt_version }}
+    get_url:
+      url: https://download.bestpractical.com/pub/rt/release/{{ rt_version }}.tar.gz
+      dest: /home/vagrant/{{ rt_version }}.tar.gz
+      mode: 0440
+    
+  - name: Unarchive RT
+    unarchive: 
+      src: /home/vagrant/{{ rt_version }}.tar.gz 
+      dest: /home/vagrant/
+      creates: /home/vagrant/{{ rt_version }}
+      copy: no
 
   - name: ./configure RT
-    command: chdir={{ rt_version }} ./configure --with-web-user=apache --with-web-group=apache --enable-graphviz --enable-gd --disable-gpg
+    command: ./configure --with-db-type=Pg --with-db-port=5432 --with-db-dba=vagrant --with-web-user=apache --with-web-group=apache --enable-graphviz --enable-gd --disable-gpg
+    args:
+      chdir: /home/vagrant/{{ rt_version }}
 
   - name: Make RT fixdeps
-    shell: cd {{ rt_version }}; export PERL_MM_USE_DEFAULT=1; make fixdeps
+    shell: PERL_MM_USE_DEFAULT=1 /home/vagrant/{{ rt_version }}/sbin/rt-test-dependencies --install --with-Pg --with-fastcgi
+    args:
+      chdir: /home/vagrant/{{ rt_version }}
 
   - name: Make RT install  
-    command: chdir={{ rt_version }} make install
+    command: make install
+    args:
+      chdir: /home/vagrant/{{ rt_version }}
 
-  - name: RT db conf 
-    copy: src=initialize-database.input dest=/home/vagrant/{{ rt_version }}/initialize-database.input owner=root group=root mode=0644
-
-  - name: Make RT dropdb
-    mysql_db: name=rt4 state=absent
-
+  - name: Test rt4 database presence
+    shell: echo "\l" | psql -Upostgres |grep --quiet rt4
+    register: db_test
+    failed_when: False
+    changed_when: False
+  
   - name: Make RT initialize-database
-    shell: cd {{ rt_version }}; make initialize-database </home/vagrant/{{ rt_version }}/initialize-database.input
-
+    command: /bin/perl -I/opt/rt4/local/lib -I/opt/rt4/lib sbin/rt-setup-database --action init --dba vagrant --dba-password pass
+    args:
+      chdir: /home/vagrant/{{ rt_version }}
+    when: db_test|failed
+        
   - name: Install RT httpd conf
-    copy: src=rt.conf dest=/etc/httpd/conf.d/rt.conf owner=root group=root mode=0644
+    copy:
+      src: rt.conf 
+      dest: /etc/httpd/conf.d/rt.conf 
+      owner: root 
+      group: root 
+      mode: 0644
     notify: restart httpd
 
   - name: Install RT_SiteConfig.pm
-    template: src=RT_SiteConfig.pm.j2 dest=/opt/rt4/etc/RT_SiteConfig.pm owner=root group=rt mode=0644
+    template: 
+      src: RT_SiteConfig.pm.j2 
+      dest: /opt/rt4/etc/RT_SiteConfig.pm 
+      owner: root 
+      group: rt 
+      mode: 0644
     notify: restart httpd
 
   - name: Start apache server
-    service: name=httpd state=started enabled=yes
+    service: 
+      name: httpd 
+      state: started 
+      enabled: yes
 
   - name: Debug
-    debug: msg="login with root/password"
+    debug: 
+      msg: "login with root/password"
 

@@ -1,13 +1,39 @@
 ---
 - hosts: all
   vars:
-    tomcat_install_base: /usr/share/tomcat6
-
+    postgresql_users:
+      - name: vagrant
+        pass: pass
+        encrypted: no
+        
+    postgresql_user_privileges:
+      - name: vagrant
+        db: vagrant
+        priv: "ALL"                 # privilege string format: example: INSERT,UPDATE/table:SELECT/anothertable:ALL
+        role_attr_flags: "SUPERUSER" 
+        
+    postgresql_databases:
+      - name: vagrant
+        owner: vagrant
+      
   pre_tasks:
+  - name: Install repoforge repo.
+    yum:
+      name: http://pkgs.repoforge.org/rpmforge-release/rpmforge-release-0.5.3-1.el7.rf.x86_64.rpm
+      state: present
+      
+  - name: Import EPEL GPG key.
+    rpm_key:
+      key: /etc/pki/rpm-gpg/{{ item }}
+      state: present      
+    with_items:
+      - RPM-GPG-KEY-rpmforge-dag
+      - RPM-GPG-KEY-rpmforge-fabian
 
   roles:
-    - selinux_disable
-    - nano
+    - geerlingguy.repo-epel
+    - postgresql
+    - ansible-role-cpan
     - RT
 
   tasks:

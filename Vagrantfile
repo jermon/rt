@@ -13,7 +13,7 @@ Vagrant.configure(2) do |config|
 
   # Every Vagrant development environment requires a box. You can search for
   # boxes at https://atlas.hashicorp.com/search.
-  config.vm.box = "bento/centos-6.7"
+  config.vm.box = "bento/centos-7.1"
 
   # Disable automatic box update checking. If you disable this, then
   # boxes will only be checked for updates when the user runs
@@ -73,5 +73,6 @@ Vagrant.configure(2) do |config|
   config.vm.provision "ansible" do |ansible|
 	  ansible.sudo = true
     ansible.playbook = "tests/playbook.yml"
+#   ansible.verbose = 'v'
   end
 end
