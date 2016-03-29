@@ -32,8 +32,8 @@
 
   roles:
     - geerlingguy.repo-epel
-    - postgresql
-    - ansible-role-cpan
+    - ANXS.postgresql
+    - jermon.cpan
     - RT
 
   tasks:

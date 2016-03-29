@@ -72,27 +72,11 @@
     - perl-Encode
     - perl-HTML-FormatText-WithLinks-AndTables
 
-#  - name: Ensure that 127.0.0.1 points to localhost in /etc/hosts
-#    lineinfile: 
-#      dest: /etc/hosts 
-#      regexp: '^127\.0\.0\.1' 
-#      line: '127.0.0.1 localhost' 
-#      owner: root 
-#      group: root 
-#      mode: 0644
-
   - name: Start NTP service
     service: 
       name: ntpd 
       state: started 
       enabled: yes
-
-#CPAN
-#  - name: Copy CPAN config file
-#    unarchive: 
-#      src: cpan.tgz
-#      dest: /root
-#      creates: /root/.cpan
 
   - name: Get cpanm
     get_url: 
